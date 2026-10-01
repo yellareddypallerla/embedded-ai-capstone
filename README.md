@@ -1,59 +1,74 @@
 # Embedded AI Capstone
 
 Personal learning project -- entirely separate from any employer repo.
-Goal: one integrated project that genuinely needs device drivers, kernel
-work, Java (OSGi + Spring Boot), edge AI, and full-stack web, instead of
-five disconnected tutorials.
+Goal: one integrated multi-tier system that genuinely needs device
+drivers, kernel work, bare-metal firmware, Java (OSGi + Spring Boot),
+edge AI, and full-stack web, instead of disconnected tutorials.
 
 ## The story this project tells
 
-> Wrote a kernel driver for a camera/sensor on an embedded Linux board,
-> wrapped it as an OSGi service, ran YOLO inference on the captured
-> frames, exposed the results over a Spring Boot API, and built a React
-> dashboard to visualize it live -- then packaged the whole thing as a
-> custom Yocto image.
+> Built a complete multi-tier IoT gateway from scratch -- an RTOS edge
+> node with cellular connectivity, a bare-metal sub-device, a Linux SBC
+> running my own kernel driver and OSGi service, YOLO-based edge video
+> analytics, a full-stack monitoring dashboard, and packaged the whole
+> thing as a custom Yocto image.
 
 ## Architecture
 
 ```
-[Sensor/Camera] --> [Kernel driver, C]              kernel-driver/
+ESP32-S3 (FreeRTOS/bare-metal)                        esp32-gateway/
+  -- owns the A7677S cellular modem (AT commands, PDP context)
+  -- publishes telemetry/alerts over MQTT
         |
+        | UART, self-designed frame protocol
         v
-[OSGi Java service wraps the driver]                osgi-service/
+STM32G070RBT6 (bare-metal)                             stm32-subdevice/
+  -- sensor read + GPIO actuator control
         |
+        | UART to the Linux side
         v
-[YOLO inference on the captured frames]              ai-inference/
+CM5 + CM5 IO board (Linux -- center of gravity)
+  |-- kernel driver: UART link to the STM32              kernel-driver/
+  |-- OSGi Java service wrapping that driver              osgi-service/
+  |-- YOLO inference on a connected camera                ai-inference/
+  |-- Spring Boot API exposing sensor + detection data     backend/
+  |-- React dashboard, live view                           frontend/
+  |-- custom Yocto image, driver + OSGi built in            yocto-layer/
         |
-        v
-[Spring Boot REST API exposes live data]             backend/
-        |
-        v
-[React dashboard shows live detections + sensor      frontend/
- data, updating in real time]
-        |
-(capstone polish)
-[Custom Yocto image packaging all of the above]       yocto-layer/
+Pi4   -- bring-up sandbox, then secondary validation target
+BPIM5 -- tertiary validation target, proves the stack isn't board-specific
 ```
+
+## What each piece demonstrates
+
+| Component | Skill |
+|---|---|
+| ESP32-S3 + A7677S | RTOS, cellular/AT-command programming, edge connectivity |
+| STM32G070RBT6 | Bare-metal MCU firmware, UART protocol design |
+| CM5 kernel driver | Linux device driver, kernel internals |
+| OSGi service | Java, modular service architecture |
+| YOLO inference | Edge AI deployment, quantization, real FPS numbers |
+| Spring Boot + React | Full-stack web |
+| Yocto image | Custom embedded Linux build system |
+| Pi4 + BPIM5 validation | Portability discipline, not a one-off hack |
 
 ## Hardware
 
-- **CM5 + CM5 IO board** -- primary target (matches real work hardware,
-  skills transfer directly)
-- **Pi4** -- sandbox for early/risky driver bring-up (better docs/
-  community than CM5), so the primary board doesn't get bricked while
-  learning
-- **BPIM5** -- secondary validation target, proving the work isn't
-  board-specific
+CM5, CM5 IO board, Pi4, BPIM5, ESP32-S3, A7677S cellular modem,
+STM32G070RBT6.
 
-## Sequencing (don't run all tracks in parallel)
+## Sequencing (don't run every track in parallel)
 
 | Weeks | Focus |
 |---|---|
-| 1-4 | Kernel driver on Pi4 (char/platform driver basics, then a real sensor/camera driver) |
-| 3-6 | OSGi wrapper in Java around the driver |
-| 5-8 | YOLO inference (quantized, e.g. TFLite/ONNX Runtime) on captured frames |
-| 7-10 | Spring Boot API + React dashboard exposing/visualizing the above |
-| 9-12 | Port to CM5, validate on BPIM5, package as a Yocto image |
+| 1-3 | ESP32-S3 + A7677S: cellular connectivity, MQTT publish |
+| 2-4 | STM32G070RBT6: bare-metal sensor/actuator firmware, UART protocol design |
+| 3-6 | CM5/Pi4 kernel driver: UART link to the STM32 |
+| 5-7 | OSGi service wrapping the driver |
+| 6-9 | YOLO inference on a camera feed |
+| 8-11 | Spring Boot API + React dashboard |
+| 10-13 | Port to CM5 properly, validate on BPIM5, package as a Yocto image |
+| 13-14 | Polish: architecture diagram, demo video, clean commit history |
 
 ## Status
 
@@ -62,10 +77,9 @@ README as work actually starts there.
 
 ## Boundary with employer work
 
-This project is intentionally separate from the OSGi driver bundles
-being built for the actual employer project (STM32/RS485/USB/GPIO
-drivers for BPIM5, handed over to the software team). Concepts learned
-here (OSGi patterns, driver structure) inform that work, but no code,
-config, or credentials cross between the two. See the employer repo's
-own `Device-services/PI/osgi-hw-drivers/README.md` for that separate,
-real deliverable.
+Concepts and architecture patterns learned here (OSGi structure, UART
+protocol design, driver conventions) deliberately mirror the real
+employer project's structure, since that's what makes the learning
+transferable -- but no employer code, config, or credentials are in this
+repo. This is an independent implementation built from first principles,
+not a copy of anything proprietary.
